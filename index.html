@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistem Gadai Simpel & Surat Perjanjian</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- html2pdf Library untuk auto generate PDF Surat -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        @page {
+            size: A4 portrait;
+            margin: 0;
+        }
+
+        @media print {
+            html, body {
+                width: 210mm;
+                height: 297mm;
+                background: white !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                overflow: hidden !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+            body * {
+                visibility: hidden;
+            }
+            #print-modal, #print-modal * {
+                visibility: visible;
+            }
+            #print-modal {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 210mm !important;
+                height: 297mm !important;
+                background: white !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                overflow: hidden !important;
+            }
+            img {
+                display: block !important;
+                max-width: 100% !important;
+                visibility: visible !important;
+            }
+            .no-print {
+                display: none !important;
+            }
+            .page-a4 {
+                width: 210mm !important;
+                height: 297mm !important;
+                max-width: 210mm !important;
+                max-height: 297mm !important;
+                padding: 10mm 15mm !important;
+                margin: 0 !important;
+                box-shadow: none !important;
+                border: none !important;
+                border-radius: 0 !important;
+                box-sizing: border-box !important;
+                page-break-after: avoid;
+                page-break-inside: avoid;
+                display: flex !important;
+                flex-direction: column !important;
+                justify-content: flex-start !important;
+            }
+
+            .print-compact-gap {
+                gap: 0.25rem !important;
+            }
+            .print-img {
+                height: 55px !important;
+                max-height: 55px !important;
+                object-fit: contain !important;
+            }
+            .print-text-sm {
+                font-size: 11pt !important;
+                line-height: 1.3 !important;
+            }
+            .print-text-xs {
+                font-size: 10.5pt !important;
+                line-height: 1.25 !important;
+            }
+        }
+
+        .page-a4 {
+            width: 100%;
+            max-width: 210mm;
+            min-height: 280mm;
+            background: white;
+            box-sizing: border-box;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 font-sans antialiased flex flex-col min-h-screen">
+
+    <!-- Header Navigation -->
+    <header class="bg-slate-900 text-white shadow-md sticky top-0 z-40 no-print">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="p-2 bg-amber-500 rounded-lg text-slate-900 font-bold">
+                    <i class="fa-solid fa-hand-holding-dollar text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-base font-bold leading-tight">Gadai & Titip Dana Simpel</h1>
+                    <p class="text-[11px] text-slate-400">Pencatatan & Surat Perjanjian Otomatis</p>
+                </div>
+            </div>
+
+            <button onclick="openModalAdd()" class="bg-amber-500 hover:bg-amber-600 text-slate-900 text-xs sm:text-sm font-bold px-3.5 py-2 rounded-lg shadow flex items-center transition">
+                <i class="fa-solid fa-plus mr-1.5"></i> Terima Gadai Baru
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="flex-grow max-w-6xl w-full mx-auto px-4 sm:px-6 py-5 space-y-5 no-print">
+
+        <!-- Notification Toast -->
+        <div id="toast" class="hidden fixed bottom-5 right-5 z-50 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-xl border-l-4 border-amber-500 flex items-center space-x-3">
+            <i class="fa-solid fa-circle-check text-amber-400 text-lg"></i>
+            <div>
+                <p class="font-semibold text-xs text-amber-400" id="toast-title">Sukses</p>
+                <p class="text-[11px] text-slate-300" id="toast-message">Data berhasil diproses.</p>
+            </div>
+        </div>
+
+        <!-- Summary Metric Cards -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                <span class="text-xs font-semibold text-slate-500">Total Pinjaman Aktif</span>
+                <h3 class="text-lg sm:text-xl font-bold text-slate-800 mt-1" id="stat-total-loan">Rp 0</h3>
+                <p class="text-[11px] text-slate-400 mt-1" id="stat-active-count">0 transaksi aktif</p>
+            </div>
+
+            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                <span class="text-xs font-semibold text-emerald-600">Berjalan Normal</span>
+                <h3 class="text-2xl font-bold text-emerald-600 mt-1" id="stat-normal-count">0</h3>
+                <p class="text-[11px] text-emerald-600/70">Masih dalam jangka waktu</p>
+            </div>
+
+            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                <span class="text-xs font-semibold text-rose-600">Jatuh Tempo (Peringatan)</span>
+                <h3 class="text-2xl font-bold text-rose-600 mt-1" id="stat-overdue-count">0</h3>
+                <p class="text-[11px] text-rose-600/70">Lewat Jangka Waktu (Hangus)</p>
+            </div>
+
+            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                <span class="text-xs font-semibold text-blue-600">Sudah Ditebus (Lunas)</span>
+                <h3 class="text-2xl font-bold text-blue-600 mt-1" id="stat-redeemed-count">0</h3>
+                <p class="text-[11px] text-blue-600/70">Barang dikembalikan</p>
+            </div>
+        </div>
+
+        <!-- Toolbar Filter & Search -->
+        <div class="bg-white p-3 sm:p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col sm:flex-row gap-2 justify-between items-center">
+            <div class="w-full sm:w-auto flex flex-col sm:flex-row gap-2">
+                <div class="relative w-full sm:w-64">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-slate-400 text-xs"></i>
+                    <input type="text" id="search-input" oninput="renderTable()" placeholder="Cari nama nasabah / nama HP..." class="w-full pl-8 pr-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none">
+                </div>
+                <select id="filter-status" onchange="renderTable()" class="w-full sm:w-auto border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 focus:ring-2 focus:ring-amber-500 focus:outline-none">
+                    <option value="ALL">Semua Status</option>
+                    <option value="AKTIF">Aktif (Berjalan)</option>
+                    <option value="JATUH_TEMPO">Lewat Jatuh Tempo</option>
+                    <option value="HAK_MILIK">Barang Hangus (Hak Milik)</option>
+                    <option value="LUNAS">Sudah Ditebus (Selesai)</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Data Table -->
+        <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-xs sm:text-sm text-slate-600">
+                    <thead class="bg-slate-800 text-white font-semibold text-[11px] uppercase tracking-wider">
+                        <tr>
+                            <th class="px-4 py-3">Nasabah & Kontak</th>
+                            <th class="px-4 py-3">Barang Jaminan</th>
+                            <th class="px-4 py-3">Pinjaman</th>
+                            <th class="px-4 py-3">Tgl Masuk</th>
+                            <th class="px-4 py-3">Jatuh Tempo</th>
+                            <th class="px-4 py-3">Status</th>
+                            <th class="px-4 py-3 text-center">Aksi / Cetak</th>
+                        </tr>
+                    </thead>
+                    <tbody id="gadai-table-body" class="divide-y divide-slate-100">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- MODAL FORM INPUT & EDIT GADAI -->
+    <div id="modal-form" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto no-print">
+        <div class="bg-white rounded-xl shadow-2xl max-w-xl w-full overflow-hidden my-8">
+            <div class="bg-slate-900 text-white px-5 py-3.5 flex justify-between items-center border-b border-slate-800">
+                <h3 class="font-bold text-sm text-amber-400" id="modal-title"><i class="fa-solid fa-file-contract mr-2"></i> Form Transaksi Gadai Barang</h3>
+                <button onclick="closeModal()" class="text-slate-400 hover:text-white text-base"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+
+            <form id="gadai-form" onsubmit="handleFormSubmit(event)" class="p-5 space-y-4 max-h-[80vh] overflow-y-auto">
+                <input type="hidden" id="item-id">
+
+                <div class="space-y-3 border-b border-slate-200 pb-3">
+                    <h4 class="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center">
+                        <i class="fa-solid fa-user text-amber-500 mr-1.5"></i> Data Pengadai / Nasabah
+                    </h4>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-700 mb-1">Nama Lengkap *</label>
+                            <input type="text" id="customer-name" required placeholder="Contoh: Budi Santoso" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-700 mb-1">No. HP / WhatsApp *</label>
+                            <input type="text" id="customer-phone" required placeholder="Contoh: 08123456789" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Alamat Singkat</label>
+                        <input type="text" id="customer-address" placeholder="Contoh: Jl. Merdeka No. 12" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Foto Orang / KTP</label>
+                        <input type="file" id="customer-photo" accept="image/*" onchange="previewImage(this, 'preview-customer')" class="w-full text-xs text-slate-500 file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-amber-50 file:text-amber-700 hover:file:bg-amber-100">
+                        <div class="mt-2 flex items-center space-x-2">
+                            <img id="preview-customer" class="h-16 w-16 object-cover rounded-lg border border-slate-200 hidden" alt="Foto Orang">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="space-y-3 border-b border-slate-200 pb-3">
+                    <h4 class="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center">
+                        <i class="fa-solid fa-mobile-screen text-amber-500 mr-1.5"></i> Data Barang Jaminan
+                    </h4>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-700 mb-1">Nama Barang / HP *</label>
+                            <input type="text" id="item-name" required placeholder="Contoh: iPhone 11 128GB Black" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-700 mb-1">Kelengkapan / Kondisi</label>
+                            <input type="text" id="item-condition" placeholder="Contoh: Unit + Charger (LCD Mulus)" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Foto Barang Gadai</label>
+                        <input type="file" id="item-photo" accept="image/*" onchange="previewImage(this, 'preview-item')" class="w-full text-xs text-slate-500 file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-amber-50 file:text-amber-700 hover:file:bg-amber-100">
+                        <div class="mt-2 flex items-center space-x-2">
+                            <img id="preview-item" class="h-16 w-16 object-cover rounded-lg border border-slate-200 hidden" alt="Foto Barang">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="space-y-3 border-b border-slate-200 pb-3">
+                    <h4 class="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center">
+                        <i class="fa-solid fa-money-bill-wave text-amber-500 mr-1.5"></i> Nilai Pinjaman & Tanggal
+                    </h4>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-700 mb-1">Nilai Pinjaman (Rp) *</label>
+                            <input type="number" id="loan-amount" min="0" required placeholder="Contoh: 1500000" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-700 mb-1">Tanggal Masuk *</label>
+                            <input type="date" id="date-in" required onchange="calculateDueDate()" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none">
+                        </div>
+                    </div>
+
+                    <!-- PILIHAN JANGKA WAKTU JATUH TEMPO -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-amber-50/60 p-3 rounded-lg border border-amber-200">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-800 mb-1">Pilihan Jangka Waktu *</label>
+                            <select id="tenure-type" onchange="calculateDueDate()" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none bg-white font-medium text-slate-800">
+                                <option value="DAILY_1">Per Hari (1 Hari)</option>
+                                <option value="DAILY_3">Per Hari (3 Hari)</option>
+                                <option value="DAILY_7">Per Hari (7 Hari)</option>
+                                <option value="WEEKLY_1">Mingguan (1 Minggu)</option>
+                                <option value="WEEKLY_2">Mingguan (2 Minggu)</option>
+                                <option value="MONTHLY_1" selected>Bulanan (1 Bulan)</option>
+                                <option value="MANUAL">Atur Tanggal Manual</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-800 mb-1">Tanggal Jatuh Tempo</label>
+                            <input type="date" id="date-due" readonly class="w-full px-3 py-1.5 bg-slate-100 border border-slate-300 rounded-lg text-xs font-bold text-rose-600 focus:outline-none">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="space-y-2">
+                    <div class="flex justify-between items-center">
+                        <label class="block text-xs font-semibold text-slate-700">Tanda Tangan Digital Nasabah (Opsional)</label>
+                        <button type="button" onclick="clearSignature()" class="text-[10px] text-rose-600 hover:underline"><i class="fa-solid fa-eraser"></i> Hapus Coretan</button>
+                    </div>
+                    <div class="border border-slate-300 rounded-lg bg-slate-50 overflow-hidden">
+                        <canvas id="signature-pad" width="450" height="100" class="w-full h-24 cursor-crosshair touch-none bg-white"></canvas>
+                    </div>
+                </div>
+
+                <div class="pt-2 flex justify-end space-x-2">
+                    <button type="button" onclick="closeModal()" class="px-4 py-2 border border-slate-300 rounded-lg text-xs font-medium text-slate-600 hover:bg-slate-100">Batal</button>
+                    <button type="submit" class="px-5 py-2 bg-amber-500 hover:bg-amber-600 text-slate-900 rounded-lg text-xs font-bold shadow">Simpan & Sync Drive</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- AREA CETAK SURAT PERJANJIAN (A4) -->
+    <div id="print-modal" class="hidden fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-sm flex items-start justify-center p-2 sm:p-4 overflow-y-auto">
+        <div class="relative my-2 sm:my-4 w-full max-w-[210mm]">
+            
+            <div class="no-print bg-slate-900 text-white p-3 rounded-t-xl flex justify-between items-center border-b border-slate-700">
+                <div class="flex items-center space-x-2">
+                    <i class="fa-solid fa-file-pdf text-amber-400 text-lg"></i>
+                    <span class="text-xs font-bold">Preview Surat Perjanjian (Format Presisi A4)</span>
+                </div>
+                <div class="flex space-x-2">
+                    <button onclick="triggerPrintAndUpload()" class="bg-amber-500 hover:bg-amber-600 text-slate-900 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center shadow">
+                        <i class="fa-solid fa-print mr-1.5"></i> Cetak & Upload PDF/Drive (A4)
+                    </button>
+                    <button onclick="closePrintModal()" class="bg-slate-700 hover:bg-slate-600 text-slate-200 px-3 py-1.5 rounded-lg text-xs font-bold">
+                        <i class="fa-solid fa-xmark mr-1"></i> Tutup
+                    </button>
+                </div>
+            </div>
+
+            <div id="print-area" class="page-a4 bg-white p-4 sm:p-5 text-slate-900 border border-slate-200 shadow-2xl rounded-b-xl mx-auto flex flex-col justify-between space-y-2">
+                <div class="space-y-2 print-compact-gap">
+                    <div class="text-center border-b-2 border-slate-900 pb-1 mb-1">
+                        <h2 class="text-lg sm:text-xl font-black uppercase tracking-wider text-slate-900">SURAT PERJANJIAN GADAI & TITIP DANA</h2>
+                        <p class="text-[11px] text-slate-600">Bukti Transaksi Resmi Titip Dana / Jaminan Barang</p>
+                        <div class="flex justify-between items-center mt-1 text-xs text-slate-700 font-semibold bg-slate-100 px-3 py-0.5 rounded">
+                            <span>No. Perjanjian: <strong id="p-id" class="text-slate-900">#GD-001</strong></span>
+                            <span>Tanggal Masuk: <strong id="p-date-in" class="text-slate-900">01/01/2026</strong></span>
+                        </div>
+                    </div>
+
+                    <p class="text-[11px] print-text-xs text-slate-800">
+                        Pada hari ini telah disepakati perjanjian titip dana / gadai jaminan antara <strong>Pihak Pertama (Nasabah)</strong> dan <strong>Pihak Kedua (Penerima Gadai)</strong> dengan rincian data sebagai berikut:
+                    </p>
+
+                    <div class="grid grid-cols-2 gap-2 bg-slate-50 p-2 rounded-lg border border-slate-300 text-xs print-text-xs">
+                        <div class="space-y-0.5">
+                            <h4 class="font-bold border-b border-slate-300 pb-0.5 text-slate-900 uppercase text-[10px] flex items-center">
+                                <i class="fa-solid fa-user text-slate-600 mr-1"></i> Data Pengadai (Nasabah)
+                            </h4>
+                            <p><span class="text-slate-500">Nama Lengkap:</span> <strong id="p-name" class="text-slate-900 block font-bold">-</strong></p>
+                            <p><span class="text-slate-500">No. HP / WA:</span> <strong id="p-phone" class="text-slate-800 block">-</strong></p>
+                            <p><span class="text-slate-500">Alamat:</span> <span id="p-address" class="text-slate-800 block truncate">-</span></p>
+                        </div>
+                        <div class="space-y-0.5 border-l border-slate-200 pl-2">
+                            <h4 class="font-bold border-b border-slate-300 pb-0.5 text-slate-900 uppercase text-[10px] flex items-center">
+                                <i class="fa-solid fa-box text-slate-600 mr-1"></i> Data Barang Jaminan
+                            </h4>
+                            <p><span class="text-slate-500">Nama Barang/HP:</span> <strong id="p-item-name" class="text-slate-900 block font-bold">-</strong></p>
+                            <p><span class="text-slate-500">Kondisi/Kelengkapan:</span> <span id="p-item-condition" class="text-slate-800 block truncate">-</span></p>
+                            <p><span class="text-slate-500">Nilai Pinjaman Dana:</span> <strong id="p-loan" class="text-slate-900 block text-sm sm:text-base font-bold text-emerald-700">-</strong></p>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2 text-center">
+                        <div class="border border-slate-300 p-1 rounded-lg bg-white">
+                            <p class="text-[9px] font-bold text-slate-600 uppercase mb-0.5">FOTO NASABAH / KTP</p>
+                            <img id="p-img-customer" src="https://placehold.co/150x150/e2e8f0/64748b?text=Foto+Nasabah" class="h-12 sm:h-14 print-img mx-auto object-contain rounded border border-slate-200" alt="Nasabah">
+                        </div>
+                        <div class="border border-slate-300 p-1 rounded-lg bg-white">
+                            <p class="text-[9px] font-bold text-slate-600 uppercase mb-0.5">FOTO BARANG JAMINAN</p>
+                            <img id="p-img-item" src="https://placehold.co/150x150/e2e8f0/64748b?text=Foto+Barang" class="h-12 sm:h-14 print-img mx-auto object-contain rounded border border-slate-200" alt="Barang">
+                        </div>
+                    </div>
+
+                    <div class="border border-slate-800 p-2 rounded-lg bg-slate-50 space-y-0.5 text-xs print-text-xs text-slate-900 leading-tight">
+                        <h4 class="font-extrabold text-slate-900 uppercase tracking-wide border-b border-slate-300 pb-0.5 mb-0.5 flex items-center justify-between text-xs print-text-xs">
+                            <span>PASAL & KETENTUAN PERJANJIAN (SYARAT & KETENTUAN HUKUM)</span>
+                            <span class="text-[10px] font-bold bg-slate-900 text-white px-2 py-0.5 rounded">JATUH TEMPO: <span id="p-date-due" class="text-amber-400">01/02/2026</span></span>
+                        </h4>
+                        <ol class="list-decimal pl-4 space-y-0.5 text-[11px] print-text-xs">
+                            <li><strong>JANGKA WAKTU PERJANJIAN:</strong> Batas maksimal pelunasan/penebusan objek jaminan disepakati hingga tanggal <strong id="p-date-due-clause" class="text-slate-900 font-bold">-</strong> terhitung sejak tanggal dokumen ini disetujui.</li>
+                            <li><strong>KEPEMILIKAN SAH & BEBAS PIDANA:</strong> Pihak Pertama menjamin penuh bahwa barang jaminan tersebut adalah milik sah Pihak Pertama, bukan barang hasil kejahatan/tindak pidana (Pasal 480 KUHP tentang Penadahan). Apabila di kemudian hari timbul sengketa hukum atas barang tersebut, maka menjadi tanggung jawab mutlak Pihak Pertama secara hukum.</li>
+                            <li><strong>WANPRESTASI & ALIH HAK MILIK:</strong> Apabila hingga batas tanggal jatuh tempo (<strong id="p-date-due-text" class="text-slate-900 font-bold">01/02/2026</strong>) Pihak Pertama tidak melakukan pelunasan atau konfirmasi perpanjangan resmi, maka Pihak Pertama dinyatakan Wanprestasi (Cidera Janji - Pasal 1238 KUHPerdata). Secara otomatis Pihak Pertama menyerahkan hak kepemilikan penuh objek jaminan kepada Pihak Kedua untuk dieksekusi, dijual, atau dipindahtangankan guna menutup nilai pinjaman (Pasal 1338 KUHPerdata).</li>
+                            <li><strong>PEMBEBASAN TANGGUNG JAWAB FISIK/FUNGSI:</strong> Pihak Kedua menjaga barang jaminan dengan sebaik-baiknya. Namun, penurunan kualitas, kerusakan komponen/mesin, kebocoran/kerusakan baterai, atau penurunan fungsi elektronik yang disebabkan oleh lamanya masa penyimpanan/didiamkan (bukan kesalahan sengaja Pihak Kedua), sepenuhnya <strong>DILUAR TANGGUNG JAWAB PIHAK KEDUA</strong>.</li>
+                            <li><strong>LEGALITAS KESAPAKATAN:</strong> Perjanjian ini dibuat secara sadar, tanpa ada unsur paksaan atau tekanan dari pihak manapun, serta mengikat kedua belah pihak secara sah demi hukum sejak ditandatangani/disetujui.</li>
+                        </ol>
+                    </div>
+                </div>
+
+                <div class="pt-2 border-t-2 border-slate-900 mt-1">
+                    <div class="grid grid-cols-2 gap-4 text-center text-xs print-text-xs">
+                        <div class="flex flex-col items-center justify-between min-h-[110px]">
+                            <p class="text-slate-900 font-bold print-text-xs">Pihak Pertama (Pengadai / Nasabah),</p>
+                            
+                            <div class="h-16 w-full flex items-center justify-center relative my-1 border border-dashed border-slate-300 rounded-lg bg-slate-50/50">
+                                <img id="p-img-signature" class="h-14 object-contain max-w-full hidden z-20" alt="Tanda Tangan Digital">
+                                <div id="p-sign-placeholder" class="flex flex-col items-center justify-center p-1">
+                                    <div class="border-2 border-dashed border-amber-600 text-amber-800 bg-amber-50 px-3 py-1 rounded text-[10px] font-bold tracking-wider mb-1">
+                                        [ TEMPEL MATERAI RP 10.000 ]
+                                    </div>
+                                    <span class="text-[9px] text-slate-400 italic">( Tanda Tangan Nasabah / Pengadai )</span>
+                                </div>
+                            </div>
+
+                            <p class="font-bold underline text-slate-900 print-text-xs" id="p-sign-name">( Nama Nasabah )</p>
+                        </div>
+
+                        <div class="flex flex-col items-center justify-between min-h-[110px]">
+                            <p class="text-slate-900 font-bold print-text-xs">Pihak Kedua (Penerima Gadai / Pengelola),</p>
+                            
+                            <div class="h-16 w-full flex items-center justify-center relative my-1">
+                                <span class="text-[10px] text-slate-400 italic border-b border-slate-300 pb-1 px-4">( Tanda Tangan & Stempel Pengelola )</span>
+                            </div>
+
+                            <p class="font-bold underline text-slate-900 print-text-xs">( Pengelola Gadai )</p>
+                        </div>
+                    </div>
+                    <p class="text-[9px] text-center text-slate-400 mt-1 italic">Dokumen dicetak secara otomatis melalui Sistem Gadai Simpel pada <span id="p-print-timestamp">-</span></p>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- JAVASCRIPT LOGIC -->
+    <script>
+        // ISI DENGAN URL GOOGLE APPS SCRIPT BOSQ
+        const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx6QppyQx3KM5vszlmSaAAbYOT1tomc-V5AJpso6ANcMXIfLIiakhYefx5pNGCTkDc/exec";
+
+        let gadaiList = JSON.parse(localStorage.getItem('gadai_simpel_data')) || [];
+        let currentActiveItem = null;
+        let canvas, ctx, isDrawing = false;
+
+        window.onload = function() {
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('date-in').value = today;
+            calculateDueDate();
+            renderTable();
+            initSignaturePad();
+        };
+
+        function initSignaturePad() {
+            canvas = document.getElementById('signature-pad');
+            if (!canvas) return;
+            ctx = canvas.getContext('2d');
+            ctx.strokeStyle = "#0f172a";
+            ctx.lineWidth = 2.5;
+
+            canvas.addEventListener('mousedown', startDrawing);
+            canvas.addEventListener('mousemove', draw);
+            canvas.addEventListener('mouseup', stopDrawing);
+            canvas.addEventListener('mouseleave', stopDrawing);
+
+            canvas.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                const touch = e.touches[0];
+                const rect = canvas.getBoundingClientRect();
+                isDrawing = true;
+                ctx.beginPath();
+                ctx.moveTo(touch.clientX - rect.left, touch.clientY - rect.top);
+            });
+            canvas.addEventListener('touchmove', (e) => {
+                e.preventDefault();
+                if (!isDrawing) return;
+                const touch = e.touches[0];
+                const rect = canvas.getBoundingClientRect();
+                ctx.lineTo(touch.clientX - rect.left, touch.clientY - rect.top);
+                ctx.stroke();
+            });
+            canvas.addEventListener('touchend', stopDrawing);
+        }
+
+        function startDrawing(e) {
+            isDrawing = true;
+            ctx.beginPath();
+            ctx.moveTo(e.offsetX, e.offsetY);
+        }
+
+        function draw(e) {
+            if (!isDrawing) return;
+            ctx.lineTo(e.offsetX, e.offsetY);
+            ctx.stroke();
+        }
+
+        function stopDrawing() { isDrawing = false; }
+
+        function clearSignature() {
+            if (ctx && canvas) ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+
+        function isCanvasBlank(c) {
+            const blank = document.createElement('canvas');
+            blank.width = c.width;
+            blank.height = c.height;
+            return c.toDataURL() === blank.toDataURL();
+        }
+
+        function formatRupiah(num) {
+            return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(num);
+        }
+
+        function saveData() {
+            localStorage.setItem('gadai_simpel_data', JSON.stringify(gadaiList));
+        }
+
+        function showToast(title, message) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-title').innerText = title;
+            document.getElementById('toast-message').innerText = message;
+            toast.classList.remove('hidden');
+            setTimeout(() => toast.classList.add('hidden'), 3000);
+        }
+
+        // LOGIKA PERHITUNGAN PILIHAN HARIAN / MINGGUAN / BULANAN / MANUAL
+        function calculateDueDate() {
+            const dateInVal = document.getElementById('date-in').value;
+            const tenureType = document.getElementById('tenure-type').value;
+            const dateDueElem = document.getElementById('date-due');
+
+            if (!dateInVal) return;
+            const d = new Date(dateInVal);
+
+            if (tenureType === 'DAILY_1') {
+                d.setDate(d.getDate() + 1);
+                dateDueElem.readOnly = true;
+                dateDueElem.classList.add('bg-slate-100');
+            } else if (tenureType === 'DAILY_3') {
+                d.setDate(d.getDate() + 3);
+                dateDueElem.readOnly = true;
+                dateDueElem.classList.add('bg-slate-100');
+            } else if (tenureType === 'DAILY_7') {
+                d.setDate(d.getDate() + 7);
+                dateDueElem.readOnly = true;
+                dateDueElem.classList.add('bg-slate-100');
+            } else if (tenureType === 'WEEKLY_1') {
+                d.setDate(d.getDate() + 7);
+                dateDueElem.readOnly = true;
+                dateDueElem.classList.add('bg-slate-100');
+            } else if (tenureType === 'WEEKLY_2') {
+                d.setDate(d.getDate() + 14);
+                dateDueElem.readOnly = true;
+                dateDueElem.classList.add('bg-slate-100');
+            } else if (tenureType === 'MONTHLY_1') {
+                d.setMonth(d.getMonth() + 1);
+                dateDueElem.readOnly = true;
+                dateDueElem.classList.add('bg-slate-100');
+            } else if (tenureType === 'MANUAL') {
+                dateDueElem.readOnly = false;
+                dateDueElem.classList.remove('bg-slate-100');
+                return;
+            }
+
+            dateDueElem.value = d.toISOString().split('T')[0];
+        }
+
+        async function sendToGoogleBackend(payload) {
+            if (!GOOGLE_SCRIPT_URL || GOOGLE_SCRIPT_URL.includes("GANTI_DENGAN_URL")) return null;
+            try {
+                const response = await fetch(GOOGLE_SCRIPT_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify(payload)
+                });
+                return await response.json();
+            } catch (err) {
+                console.error("Gagal komunikasi dengan backend Google:", err);
+                return null;
+            }
+        }
+
+        function previewImage(input, targetId) {
+            const preview = document.getElementById(targetId);
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    preview.src = e.target.result;
+                    preview.classList.remove('hidden');
+                }
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+
+        function isOverdue(dateDueStr) {
+            const today = new Date();
+            today.setHours(0,0,0,0);
+            return today > new Date(dateDueStr);
+        }
+
+        function renderTable() {
+            const tbody = document.getElementById('gadai-table-body');
+            const search = document.getElementById('search-input').value.toLowerCase();
+            const filterStatus = document.getElementById('filter-status').value;
+
+            tbody.innerHTML = '';
+            let totalActiveLoan = 0, activeCount = 0, normalCount = 0, overdueCount = 0, redeemedCount = 0;
+
+            const filteredData = gadaiList.filter(item => {
+                const matchSearch = item.customerName.toLowerCase().includes(search) || item.itemName.toLowerCase().includes(search) || item.customerPhone.includes(search);
+                const overdue = isOverdue(item.dateDue);
+                const matchStatus = filterStatus === 'ALL' || 
+                                   (filterStatus === 'JATUH_TEMPO' && overdue && item.status === 'AKTIF') ||
+                                   (filterStatus === 'AKTIF' && !overdue && item.status === 'AKTIF') ||
+                                   (filterStatus === item.status);
+                return matchSearch && matchStatus;
+            });
+
+            gadaiList.forEach(item => {
+                if (item.status === 'AKTIF') {
+                    totalActiveLoan += item.loanAmount;
+                    activeCount++;
+                    if (isOverdue(item.dateDue)) overdueCount++;
+                    else normalCount++;
+                } else if (item.status === 'LUNAS') {
+                    redeemedCount++;
+                }
+            });
+
+            document.getElementById('stat-total-loan').innerText = formatRupiah(totalActiveLoan);
+            document.getElementById('stat-active-count').innerText = `${activeCount} barang masih digadai`;
+            document.getElementById('stat-normal-count').innerText = normalCount;
+            document.getElementById('stat-overdue-count').innerText = overdueCount;
+            document.getElementById('stat-redeemed-count').innerText = redeemedCount;
+
+            if (filteredData.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="7" class="text-center py-6 text-slate-400 italic">Belum ada data gadai tercatat.</td></tr>`;
+                return;
+            }
+
+            filteredData.forEach(item => {
+                const overdue = isOverdue(item.dateDue);
+                let statusBadge = '';
+                if (item.status === 'LUNAS') statusBadge = `<span class="px-2 py-0.5 rounded text-[11px] font-bold bg-blue-100 text-blue-700">Sudah Ditebus</span>`;
+                else if (item.status === 'HAK_MILIK') statusBadge = `<span class="px-2 py-0.5 rounded text-[11px] font-bold bg-purple-100 text-purple-800">Hangus / Hak Milik</span>`;
+                else if (overdue) statusBadge = `<span class="px-2 py-0.5 rounded text-[11px] font-bold bg-rose-100 text-rose-700 animate-pulse">Jatuh Tempo!</span>`;
+                else statusBadge = `<span class="px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-100 text-emerald-700">Aktif</span>`;
+
+                tbody.innerHTML += `
+                    <tr class="hover:bg-slate-50 transition border-b border-slate-100">
+                        <td class="px-4 py-3">
+                            <div class="flex items-center space-x-2">
+                                <img src="${item.customerPhoto}" class="w-8 h-8 rounded-full object-cover border border-slate-200" alt="Nasabah">
+                                <div>
+                                    <p class="font-bold text-slate-800">${item.customerName}</p>
+                                    <p class="text-[11px] text-slate-400"><i class="fa-brands fa-whatsapp text-emerald-600"></i> ${item.customerPhone}</p>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="px-4 py-3">
+                            <div class="flex items-center space-x-2">
+                                <img src="${item.itemPhoto}" class="w-8 h-8 rounded object-cover border border-slate-200" alt="Barang">
+                                <div>
+                                    <p class="font-bold text-slate-800">${item.itemName}</p>
+                                    <p class="text-[11px] text-slate-400">${item.itemCondition || '-'}</p>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="px-4 py-3 font-bold text-slate-800">${formatRupiah(item.loanAmount)}</td>
+                        <td class="px-4 py-3 text-slate-600">${item.dateIn}</td>
+                        <td class="px-4 py-3 font-semibold ${overdue && item.status === 'AKTIF' ? 'text-rose-600' : 'text-slate-600'}">${item.dateDue}</td>
+                        <td class="px-4 py-3">${statusBadge}</td>
+                        <td class="px-4 py-3 text-center space-x-1">
+                            <button onclick="openPrintModal('${item.id}')" title="Cetak / PDF Surat" class="px-2 py-1 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded text-xs font-bold">
+                                <i class="fa-solid fa-print"></i> Surat
+                            </button>
+                            <button onclick="openModalEdit('${item.id}')" title="Edit Data Nasabah/Barang" class="px-2 py-1 bg-amber-500 hover:bg-amber-600 text-slate-900 rounded text-xs font-bold">
+                                <i class="fa-solid fa-pen-to-square"></i> Edit
+                            </button>
+                            ${item.status === 'AKTIF' ? `
+                                <button onclick="markRedeemed('${item.id}')" title="Tandai Sudah Ditebus/Lunas" class="px-2 py-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 rounded text-xs font-semibold">
+                                    <i class="fa-solid fa-check"></i> Tebus
+                                </button>
+                                <button onclick="markHakMilik('${item.id}')" title="Tandai Barang Hangus/Jadi Hak Milik" class="px-2 py-1 bg-purple-100 hover:bg-purple-200 text-purple-800 rounded text-xs font-semibold">
+                                    <i class="fa-solid fa-gavel"></i> Hak Milik
+                                </button>
+                            ` : ''}
+                            <button onclick="deleteGadai('${item.id}')" title="Hapus Data" class="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded text-xs">
+                                <i class="fa-solid fa-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        async function syncToGoogleSheet(item) {
+            await sendToGoogleBackend({ action: 'syncSheet', item: item });
+        }
+
+        async function uploadFileToDrive(base64Data, filename, mimeType = 'image/png') {
+            const res = await sendToGoogleBackend({ action: 'upload', imageBase64: base64Data, fileName: filename, mimeType: mimeType });
+            return res ? res.fileId : null;
+        }
+
+        async function deleteFileFromDrive(fileId) {
+            if (fileId) await sendToGoogleBackend({ action: 'delete', fileId: fileId });
+        }
+
+        async function deleteSheetRow(id) {
+            await sendToGoogleBackend({ action: 'deleteSheetRow', id: id });
+        }
+
+        async function markRedeemed(id) {
+            const item = gadaiList.find(i => i.id === id);
+            if (!item) return;
+
+            if (confirm(`Selesaikan transaksi ${item.customerName}? File di Google Drive akan terhapus otomatis.`)) {
+                if (item.driveCustFileId) await deleteFileFromDrive(item.driveCustFileId);
+                if (item.driveItemFileId) await deleteFileFromDrive(item.driveItemFileId);
+                if (item.drivePdfFileId) await deleteFileFromDrive(item.drivePdfFileId);
+
+                item.status = 'LUNAS';
+                item.driveCustFileId = null;
+                item.driveItemFileId = null;
+                item.drivePdfFileId = null;
+
+                saveData();
+                renderTable();
+                await syncToGoogleSheet(item);
+                showToast('Barang Ditebus', `Transaksi ${item.customerName} dilunasi dan file Drive telah dibersihkan.`);
+            }
+        }
+
+        async function markHakMilik(id) {
+            const item = gadaiList.find(i => i.id === id);
+            if (!item) return;
+            item.status = 'HAK_MILIK';
+            saveData();
+            renderTable();
+            await syncToGoogleSheet(item);
+            showToast('Hak Milik', `Barang ${item.itemName} kini menjadi Hak Milik.`);
+        }
+
+        async function deleteGadai(id) {
+            const item = gadaiList.find(i => i.id === id);
+            if (!item) return;
+
+            if (confirm('Apakah Anda yakin ingin menghapus data gadai ini? File di Drive & baris Sheet juga akan terhapus.')) {
+                if (item.driveCustFileId) await deleteFileFromDrive(item.driveCustFileId);
+                if (item.driveItemFileId) await deleteFileFromDrive(item.driveItemFileId);
+                if (item.drivePdfFileId) await deleteFileFromDrive(item.drivePdfFileId);
+                await deleteSheetRow(item.id);
+
+                gadaiList = gadaiList.filter(i => i.id !== id);
+                saveData();
+                renderTable();
+                showToast('Dihapus', 'Data gadai, file Drive, dan data Sheet terkait telah dihapus.');
+            }
+        }
+
+        function openModalAdd() {
+            document.getElementById('modal-title').innerHTML = `<i class="fa-solid fa-file-contract mr-2"></i> Form Transaksi Gadai Baru`;
+            document.getElementById('gadai-form').reset();
+            document.getElementById('item-id').value = '';
+            document.getElementById('preview-customer').classList.add('hidden');
+            document.getElementById('preview-item').classList.add('hidden');
+            document.getElementById('tenure-type').value = 'MONTHLY_1';
+            clearSignature();
+            
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('date-in').value = today;
+            calculateDueDate();
+
+            document.getElementById('modal-form').classList.remove('hidden');
+        }
+
+        function openModalEdit(id) {
+            const item = gadaiList.find(i => i.id === id);
+            if (!item) return;
+
+            document.getElementById('modal-title').innerHTML = `<i class="fa-solid fa-pen-to-square mr-2"></i> Edit Data Gadai (#${item.id})`;
+            document.getElementById('item-id').value = item.id;
+
+            document.getElementById('customer-name').value = item.customerName;
+            document.getElementById('customer-phone').value = item.customerPhone;
+            document.getElementById('customer-address').value = item.customerAddress || '';
+
+            document.getElementById('item-name').value = item.itemName;
+            document.getElementById('item-condition').value = item.itemCondition || '';
+
+            document.getElementById('loan-amount').value = item.loanAmount;
+            document.getElementById('date-in').value = item.dateIn;
+            document.getElementById('tenure-type').value = item.tenureType || 'MANUAL';
+            document.getElementById('date-due').value = item.dateDue;
+
+            if (item.tenureType === 'MANUAL') {
+                document.getElementById('date-due').readOnly = false;
+                document.getElementById('date-due').classList.remove('bg-slate-100');
+            }
+
+            const custImg = document.getElementById('preview-customer');
+            if (item.customerPhoto) {
+                custImg.src = item.customerPhoto;
+                custImg.classList.remove('hidden');
+            }
+
+            const itemImg = document.getElementById('preview-item');
+            if (item.itemPhoto) {
+                itemImg.src = item.itemPhoto;
+                itemImg.classList.remove('hidden');
+            }
+
+            clearSignature();
+            document.getElementById('modal-form').classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('modal-form').classList.add('hidden');
+        }
+
+        async function handleFormSubmit(e) {
+            e.preventDefault();
+
+            const existingId = document.getElementById('item-id').value;
+            const customerName = document.getElementById('customer-name').value;
+            const customerPhone = document.getElementById('customer-phone').value;
+            const customerAddress = document.getElementById('customer-address').value;
+            const itemName = document.getElementById('item-name').value;
+            const itemCondition = document.getElementById('item-condition').value;
+            const loanAmount = parseFloat(document.getElementById('loan-amount').value) || 0;
+            const dateIn = document.getElementById('date-in').value;
+            const tenureType = document.getElementById('tenure-type').value;
+            const dateDue = document.getElementById('date-due').value;
+
+            const custImgElem = document.getElementById('preview-customer');
+            const itemImgElem = document.getElementById('preview-item');
+
+            const customerPhoto = (!custImgElem.classList.contains('hidden') && custImgElem.src) ? custImgElem.src : 'https://placehold.co/150x150/cbd5e1/334155?text=Foto+Nasabah';
+            const itemPhoto = (!itemImgElem.classList.contains('hidden') && itemImgElem.src) ? itemImgElem.src : 'https://placehold.co/150x150/cbd5e1/334155?text=Foto+Barang';
+
+            let signatureData = null;
+            if (canvas && !isCanvasBlank(canvas)) signatureData = canvas.toDataURL();
+
+            let targetItem = null;
+
+            if (existingId) {
+                targetItem = gadaiList.find(i => i.id === existingId);
+                if (targetItem) {
+                    targetItem.customerName = customerName;
+                    targetItem.customerPhone = customerPhone;
+                    targetItem.customerAddress = customerAddress;
+                    targetItem.itemName = itemName;
+                    targetItem.itemCondition = itemCondition;
+                    targetItem.loanAmount = loanAmount;
+                    targetItem.dateIn = dateIn;
+                    targetItem.tenureType = tenureType;
+                    targetItem.dateDue = dateDue;
+                    targetItem.customerPhoto = customerPhoto;
+                    targetItem.itemPhoto = itemPhoto;
+                    if (signatureData) targetItem.signatureData = signatureData;
+                }
+            } else {
+                const newId = 'GD-' + Math.floor(1000 + Math.random() * 9000);
+                targetItem = {
+                    id: newId,
+                    customerName,
+                    customerPhone,
+                    customerAddress,
+                    customerPhoto,
+                    itemName,
+                    itemCondition,
+                    itemPhoto,
+                    loanAmount,
+                    dateIn,
+                    tenureType,
+                    dateDue,
+                    signatureData,
+                    status: 'AKTIF',
+                    driveCustFileId: null,
+                    driveItemFileId: null,
+                    drivePdfFileId: null
+                };
+                gadaiList.unshift(targetItem);
+            }
+
+            saveData();
+            closeModal();
+            renderTable();
+
+            await syncToGoogleSheet(targetItem);
+            showToast('Tersimpan & Sync', `Data atas nama ${customerName} berhasil disimpan & diupdate ke Sheet.`);
+
+            openPrintModal(targetItem.id);
+        }
+
+        function openPrintModal(id) {
+            const item = gadaiList.find(i => i.id === id);
+            if (!item) return;
+
+            currentActiveItem = item;
+
+            document.getElementById('p-id').innerText = '#' + item.id;
+            document.getElementById('p-date-in').innerText = item.dateIn;
+            document.getElementById('p-name').innerText = item.customerName;
+            document.getElementById('p-phone').innerText = item.customerPhone;
+            document.getElementById('p-address').innerText = item.customerAddress || '-';
+            document.getElementById('p-item-name').innerText = item.itemName;
+            document.getElementById('p-item-condition').innerText = item.itemCondition || '-';
+            document.getElementById('p-loan').innerText = formatRupiah(item.loanAmount);
+
+            document.getElementById('p-img-customer').src = item.customerPhoto;
+            document.getElementById('p-img-item').src = item.itemPhoto;
+
+            document.getElementById('p-date-due').innerText = item.dateDue;
+            document.getElementById('p-date-due-text').innerText = item.dateDue;
+            document.getElementById('p-date-due-clause').innerText = item.dateDue;
+            document.getElementById('p-sign-name').innerText = `( ${item.customerName} )`;
+
+            const signImgElem = document.getElementById('p-img-signature');
+            const signPlaceholder = document.getElementById('p-sign-placeholder');
+            if (item.signatureData) {
+                signImgElem.src = item.signatureData;
+                signImgElem.classList.remove('hidden');
+                signPlaceholder.classList.add('hidden');
+            } else {
+                signImgElem.classList.add('hidden');
+                signPlaceholder.classList.remove('hidden');
+            }
+
+            const now = new Date();
+            document.getElementById('p-print-timestamp').innerText = `${now.toLocaleDateString('id-ID')} - ${now.toLocaleTimeString('id-ID')}`;
+
+            document.getElementById('print-modal').classList.remove('hidden');
+        }
+
+        async function triggerPrintAndUpload() {
+            if (currentActiveItem) {
+                showToast('Mengunggah...', 'Sistem sedang memproses PDF & foto ke Drive...');
+
+                if (currentActiveItem.customerPhoto.startsWith('data:image')) {
+                    const cFileId = await uploadFileToDrive(currentActiveItem.customerPhoto, `${currentActiveItem.id}_nasabah.png`, 'image/png');
+                    if (cFileId) currentActiveItem.driveCustFileId = cFileId;
+                }
+
+                if (currentActiveItem.itemPhoto.startsWith('data:image')) {
+                    const iFileId = await uploadFileToDrive(currentActiveItem.itemPhoto, `${currentActiveItem.id}_barang.png`, 'image/png');
+                    if (iFileId) currentActiveItem.driveItemFileId = iFileId;
+                }
+
+                const printElement = document.getElementById('print-area');
+                const opt = {
+                    margin:       0,
+                    filename:     `${currentActiveItem.id}_Surat_Perjanjian.pdf`,
+                    image:        { type: 'jpeg', quality: 0.98 },
+                    html2canvas:  { scale: 2, useCORS: true },
+                    jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                };
+
+                try {
+                    const pdfBase64 = await html2pdf().set(opt).from(printElement).outputPdf('datauristring');
+                    const pdfFileId = await uploadFileToDrive(pdfBase64, `${currentActiveItem.id}_Surat_Perjanjian.pdf`, 'application/pdf');
+                    if (pdfFileId) currentActiveItem.drivePdfFileId = pdfFileId;
+                } catch (err) {
+                    console.error("Gagal generate/upload PDF Surat:", err);
+                }
+
+                saveData();
+                showToast('Sukses Upload', 'Foto & File PDF Surat Perjanjian berhasil tersimpan di Google Drive!');
+            }
+
+            window.print();
+        }
+
+        function closePrintModal() {
+            document.getElementById('print-modal').classList.add('hidden');
+        }
+    </script>
+</body>
+</html>
